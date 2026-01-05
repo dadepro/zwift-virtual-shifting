@@ -37,7 +37,7 @@ This app bridges the gap between Zwift Click controllers and older Kickr trainer
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/zwift-virtual-shifting.git
+git clone https://github.com/dadepro/zwift-virtual-shifting.git
 cd zwift-virtual-shifting
 
 # Install dependencies
