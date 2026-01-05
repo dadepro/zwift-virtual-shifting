@@ -1,0 +1,27 @@
+{
+  "bluetooth": {
+    "kickr_name": "KICKR",
+    "click_left_name": "CLICK L",
+    "click_right_name": "CLICK R",
+    "scan_timeout": 10
+  },
+  "gears": {
+    "total_gears": 24,
+    "current_gear": 12,
+    "min_gear": 1,
+    "max_gear": 24,
+    "shift_smoothing_ms": 200
+  },
+  "resistance": {
+    "base_resistance": 0,
+    "resistance_per_gear": 2.5,
+    "min_resistance_percent": 0,
+    "max_resistance_percent": 100,
+    "enable_erg_mode": false
+  },
+  "display": {
+    "show_gear_changes": true,
+    "show_resistance_changes": true,
+    "verbose_logging": false
+  }
+}
