@@ -109,12 +109,14 @@ def main():
     )
 
     # Create event tap
+    from Quartz import kCGSessionEventTap
     tap = CGEventTapCreate(
-        kCGHeadInsertEventTap,
-        kCGEventTapOptionDefault,
-        event_mask,
-        event_callback,
-        None
+        kCGSessionEventTap,  # Tap location
+        kCGHeadInsertEventTap,  # Place to insert tap
+        kCGEventTapOptionDefault,  # Options
+        event_mask,  # Events of interest
+        event_callback,  # Callback function
+        None  # User data
     )
 
     if not tap:
