@@ -10,7 +10,7 @@ import sys
 from typing import Optional
 
 from kickr_controller import KickrController
-from click_listener import ClickListener, DualClickListener
+from click_listener_v2 import ZwiftClickListener, DualZwiftClickListener
 from gear_controller import GearController
 
 
@@ -27,7 +27,7 @@ class VirtualShiftingApp:
         self.gear_controller = GearController(config_path)
 
         # Use dual click listener for left/right buttons
-        self.click_listener = DualClickListener(
+        self.click_listener = DualZwiftClickListener(
             device_name=self.config['bluetooth']['click_name'],
             on_shift_up=self.handle_shift_up,
             on_shift_down=self.handle_shift_down
