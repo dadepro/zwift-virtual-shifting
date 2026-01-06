@@ -26,17 +26,15 @@ async def scan_devices():
 
     print(f"Found {len(devices)} Bluetooth devices:\n")
 
-    # Sort by signal strength (RSSI)
-    devices_sorted = sorted(devices, key=lambda d: d.rssi if d.rssi else -999, reverse=True)
+    # Sort by name (rssi not always available on macOS)
+    devices_sorted = sorted(devices, key=lambda d: d.name if d.name else "zzz")
 
     for i, device in enumerate(devices_sorted, 1):
         name = device.name if device.name else "(Unknown)"
         address = device.address
-        rssi = device.rssi if device.rssi else "N/A"
 
         print(f"{i}. Name: {name}")
         print(f"   Address: {address}")
-        print(f"   Signal: {rssi} dBm")
 
         # Highlight potential Click controllers
         if device.name and any(keyword in device.name.upper() for keyword in ["CLICK", "WAHOO", "BUTTON", "REMOTE"]):
