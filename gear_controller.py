@@ -1,6 +1,7 @@
 """
-Gear Controller
-Manages virtual gear state and calculates resistance based on gear selection
+Gear Controller v2 - Gradient-based Virtual Shifting
+Uses gradient simulation instead of direct resistance control
+Works alongside Zwift by adding/subtracting gradient based on gear selection
 """
 
 import asyncio
@@ -9,7 +10,7 @@ import json
 
 
 class GearController:
-    """Manages virtual gearing and resistance calculations"""
+    """Manages virtual gearing using gradient simulation"""
 
     def __init__(self, config_path: str = "config.json"):
         # Load configuration
@@ -23,44 +24,45 @@ class GearController:
         self.max_gear = self.config['gears']['max_gear']
         self.shift_smoothing_ms = self.config['gears']['shift_smoothing_ms']
 
-        # Resistance settings
-        self.base_resistance = self.config['resistance']['base_resistance']
-        self.resistance_per_gear = self.config['resistance']['resistance_per_gear']
-        self.min_resistance = self.config['resistance']['min_resistance_percent']
-        self.max_resistance = self.config['resistance']['max_resistance_percent']
+        # Gradient settings (new approach)
+        # Each gear adds/removes gradient
+        # Range: -0.10 to +0.10 (±10% gradient)
+        self.gradient_per_gear = 0.01  # 1% gradient change per gear
+        self.base_gradient = 0.0
 
         # Callbacks
         self.on_gear_change: Optional[Callable[[int, float], None]] = None
-        self.on_resistance_change: Optional[Callable[[float], None]] = None
+        self.on_gradient_change: Optional[Callable[[float], None]] = None
 
         # Display settings
         self.show_gear_changes = self.config['display']['show_gear_changes']
-        self.show_resistance_changes = self.config['display']['show_resistance_changes']
 
-    def get_resistance_for_gear(self, gear: int) -> float:
+    def get_gradient_for_gear(self, gear: int) -> float:
         """
-        Calculate resistance percentage for a given gear
-        Lower gears = higher resistance (easier to pedal, lower speed)
-        Higher gears = lower resistance (harder to pedal, higher speed)
+        Calculate gradient offset for a given gear
 
-        Note: This is inverted from traditional thinking because we're
-        simulating resistance, not mechanical advantage
+        Lower gears (1-12) = positive gradient (like going uphill, harder)
+        Higher gears (13-24) = negative gradient (like going downhill, easier)
+
+        This adds to whatever gradient Zwift is sending based on terrain
         """
-        # Normalize gear to 0-1 range
-        gear_ratio = (gear - self.min_gear) / (self.max_gear - self.min_gear)
+        # Center gear (12) = 0% gradient offset
+        # Gear 1 = +11% gradient (much harder)
+        # Gear 24 = -12% gradient (much easier)
 
-        # Calculate resistance
-        # Lower gears (easier) = lower resistance needed
-        # Higher gears (harder) = higher resistance needed
-        resistance = self.base_resistance + (gear_ratio * self.resistance_per_gear * self.total_gears)
+        middle_gear = (self.max_gear + self.min_gear) / 2
+        gear_offset = gear - middle_gear
 
-        # Clamp to valid range
-        resistance = max(self.min_resistance, min(self.max_resistance, resistance))
+        # Convert to gradient (-1.0 to 1.0 where 1.0 = 100% grade)
+        gradient = -gear_offset * self.gradient_per_gear
 
-        return resistance
+        # Clamp to reasonable range (-10% to +10%)
+        gradient = max(-0.10, min(0.10, gradient))
+
+        return gradient
 
     async def shift_up(self):
-        """Shift to a harder gear (increase gear number)"""
+        """Shift to a harder gear (increase gear number, reduce gradient)"""
         if self.current_gear < self.max_gear:
             self.current_gear += 1
             await self._apply_gear_change()
@@ -69,7 +71,7 @@ class GearController:
                 print(f"Already in highest gear ({self.max_gear})")
 
     async def shift_down(self):
-        """Shift to an easier gear (decrease gear number)"""
+        """Shift to an easier gear (decrease gear number, increase gradient)"""
         if self.current_gear > self.min_gear:
             self.current_gear -= 1
             await self._apply_gear_change()
@@ -78,18 +80,25 @@ class GearController:
                 print(f"Already in lowest gear ({self.min_gear})")
 
     async def _apply_gear_change(self):
-        """Apply the gear change and update resistance"""
-        resistance = self.get_resistance_for_gear(self.current_gear)
+        """Apply the gear change and update gradient"""
+        gradient = self.get_gradient_for_gear(self.current_gear)
 
         if self.show_gear_changes:
-            print(f"⚙️  Gear: {self.current_gear}/{self.max_gear} | Resistance: {resistance:.1f}%")
+            gear_display = self.get_gear_display()
+            gradient_pct = gradient * 100
+            if gradient > 0:
+                print(f"⚙️  Gear: {self.current_gear}/{self.max_gear} ({gear_display}) | +{gradient_pct:.1f}% gradient (harder)")
+            elif gradient < 0:
+                print(f"⚙️  Gear: {self.current_gear}/{self.max_gear} ({gear_display}) | {gradient_pct:.1f}% gradient (easier)")
+            else:
+                print(f"⚙️  Gear: {self.current_gear}/{self.max_gear} ({gear_display}) | neutral")
 
         # Trigger callbacks
         if self.on_gear_change:
-            await self.on_gear_change(self.current_gear, resistance)
+            await self.on_gear_change(self.current_gear, gradient)
 
-        if self.on_resistance_change:
-            await self.on_resistance_change(resistance)
+        if self.on_gradient_change:
+            await self.on_gradient_change(gradient)
 
         # Smooth shifting (optional delay)
         if self.shift_smoothing_ms > 0:
@@ -107,30 +116,29 @@ class GearController:
         """Get current gear number"""
         return self.current_gear
 
-    def get_current_resistance(self) -> float:
-        """Get current resistance percentage"""
-        return self.get_resistance_for_gear(self.current_gear)
+    def get_current_gradient(self) -> float:
+        """Get current gradient offset"""
+        return self.get_gradient_for_gear(self.current_gear)
 
     def get_gear_display(self) -> str:
         """Get formatted gear display string"""
-        # Display as chainring-cassette format (simulated)
-        # e.g., "53-17" for road bike gearing
+        # Display as chainring-cassette format
+        # Simulate 2x12 gearing (53/39 chainrings, 11-28 cassette)
 
-        # Simulate front chainring (2 rings)
-        if self.current_gear <= self.total_gears / 2:
-            front = 39  # Small chainring
-            rear_index = self.current_gear
+        # Determine front chainring
+        if self.current_gear <= 12:
+            front = 39  # Small chainring (gears 1-12)
+            rear_index = self.current_gear - 1
         else:
-            front = 53  # Large chainring
-            rear_index = self.current_gear - int(self.total_gears / 2)
+            front = 53  # Large chainring (gears 13-24)
+            rear_index = self.current_gear - 13
 
-        # Simulate rear cassette (11-28 range)
-        cassette = [28, 25, 23, 21, 19, 17, 15, 14, 13, 12, 11]
-        rear_gears = int(self.total_gears / 2)
+        # 12-speed cassette: 11-28
+        cassette = [28, 25, 23, 21, 19, 17, 15, 14, 13, 12, 11, 11]
 
-        if rear_index < len(cassette):
+        if 0 <= rear_index < len(cassette):
             rear = cassette[rear_index]
         else:
-            rear = cassette[-1]
+            rear = 15  # Default
 
         return f"{front}-{rear}"

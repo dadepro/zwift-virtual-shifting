@@ -34,7 +34,7 @@ class VirtualShiftingApp:
         )
 
         # Set up gear controller callbacks
-        self.gear_controller.on_resistance_change = self.handle_resistance_change
+        self.gear_controller.on_gradient_change = self.handle_gradient_change
 
         # Running state
         self.running = False
@@ -47,10 +47,16 @@ class VirtualShiftingApp:
         """Handle shift down command from Click controller"""
         await self.gear_controller.shift_down()
 
-    async def handle_resistance_change(self, resistance: float):
-        """Handle resistance change from gear controller"""
+    async def handle_gradient_change(self, gradient: float):
+        """Handle gradient change from gear controller"""
         if self.kickr.connected:
-            await self.kickr.set_resistance(resistance)
+            # Use simulation mode with gradient offset
+            # This works alongside Zwift's terrain simulation
+            await self.kickr.set_simulation_mode(
+                grade=gradient,
+                crr=0.004,  # Coefficient of rolling resistance
+                wind_speed=0.0
+            )
 
     async def connect_devices(self) -> bool:
         """Connect to all Bluetooth devices"""
@@ -89,15 +95,25 @@ class VirtualShiftingApp:
 
     async def initialize(self):
         """Initialize the virtual shifting system"""
-        # Set initial resistance based on starting gear
-        initial_resistance = self.gear_controller.get_current_resistance()
-        await self.kickr.set_resistance(initial_resistance)
+        # Set initial gradient based on starting gear
+        initial_gradient = self.gear_controller.get_current_gradient()
+        await self.kickr.set_simulation_mode(
+            grade=initial_gradient,
+            crr=0.004,
+            wind_speed=0.0
+        )
 
         print("=" * 50)
         print("Virtual Shifting Active!")
         print("=" * 50)
         print(f"Current Gear: {self.gear_controller.current_gear}/{self.gear_controller.max_gear}")
-        print(f"Resistance: {initial_resistance:.1f}%")
+        gradient_pct = initial_gradient * 100
+        if gradient_pct > 0:
+            print(f"Gradient Offset: +{gradient_pct:.1f}% (harder)")
+        elif gradient_pct < 0:
+            print(f"Gradient Offset: {gradient_pct:.1f}% (easier)")
+        else:
+            print(f"Gradient Offset: neutral")
         print()
         print("Use Click controllers to shift gears")
         print("Press Ctrl+C to quit")
@@ -133,9 +149,9 @@ class VirtualShiftingApp:
         # Disconnect Click controllers
         await self.click_listener.disconnect()
 
-        # Reset resistance to 0 before disconnecting
+        # Reset gradient to neutral before disconnecting
         if self.kickr.connected:
-            await self.kickr.set_resistance(0)
+            await self.kickr.set_simulation_mode(grade=0.0, crr=0.004, wind_speed=0.0)
 
         # Disconnect Kickr
         await self.kickr.disconnect()
