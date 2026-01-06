@@ -28,6 +28,7 @@ class VirtualShiftingApp:
 
         # Use dual click listener for left/right buttons
         self.click_listener = DualClickListener(
+            device_name=self.config['bluetooth']['click_name'],
             on_shift_up=self.handle_shift_up,
             on_shift_down=self.handle_shift_down
         )

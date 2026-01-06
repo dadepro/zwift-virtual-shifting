@@ -1,9 +1,8 @@
 {
   "bluetooth": {
     "kickr_name": "KICKR",
-    "click_left_name": "CLICK L",
-    "click_right_name": "CLICK R",
-    "scan_timeout": 10
+    "click_name": "Zwift Click",
+    "scan_timeout": 15
   },
   "gears": {
     "total_gears": 24,

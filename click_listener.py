@@ -115,35 +115,81 @@ class ClickListener:
 class DualClickListener:
     """Listener for both left and right Zwift Click controllers"""
 
-    def __init__(self, on_shift_up: Callable = None, on_shift_down: Callable = None):
-        self.left_click = ClickListener("CLICK L", on_shift_down=on_shift_down)
-        self.right_click = ClickListener("CLICK R", on_shift_up=on_shift_up)
+    def __init__(self, device_name: str = "Zwift Click", on_shift_up: Callable = None, on_shift_down: Callable = None):
+        self.device_name = device_name
+        self.click_controllers = []
         self.on_shift_up = on_shift_up
         self.on_shift_down = on_shift_down
 
     async def scan_and_connect(self, timeout: int = 10) -> bool:
-        """Connect to both Click controllers"""
-        print("Connecting to Zwift Click controllers...")
+        """Connect to both Click controllers (same name, different addresses)"""
+        print(f"Scanning for {self.device_name} controllers...")
 
-        # Try to connect to both
-        left_connected = await self.left_click.scan_and_connect(timeout)
-        right_connected = await self.right_click.scan_and_connect(timeout)
+        devices = await BleakScanner.discover(timeout=timeout)
 
-        # At least one should connect
-        if not left_connected and not right_connected:
+        # Find all devices matching the Click name
+        click_devices = []
+        for device in devices:
+            if device.name and self.device_name.lower() in device.name.lower():
+                click_devices.append(device)
+                print(f"Found {device.name} ({device.address})")
+
+        if len(click_devices) == 0:
+            print(f"Could not find any {self.device_name} controllers")
+            print("\nTroubleshooting:")
+            print("1. Make sure Click controllers have batteries")
+            print("2. Press the buttons to wake them up")
+            print("3. Check they're not connected to another device")
+            return False
+
+        # Connect to the first two Click devices found
+        # First one = shift down (left), Second one = shift up (right)
+        for i, device in enumerate(click_devices[:2]):
+            if i == 0:
+                # First Click = Left (shift down)
+                listener = ClickListener(device.name, on_shift_down=self.on_shift_down)
+            else:
+                # Second Click = Right (shift up)
+                listener = ClickListener(device.name, on_shift_up=self.on_shift_up)
+
+            listener.device = device
+            try:
+                listener.client = BleakClient(device.address)
+                await listener.client.connect()
+                listener.connected = True
+                print(f"✓ Connected to {device.name} ({device.address[:8]}...)")
+
+                # Subscribe to notifications
+                services = listener.client.services
+                button_char = None
+                for service in services:
+                    for char in service.characteristics:
+                        if "notify" in char.properties:
+                            button_char = char.uuid
+                            break
+                    if button_char:
+                        break
+
+                if button_char:
+                    await listener.client.start_notify(button_char, listener._handle_button_press)
+                    print(f"  ✓ Subscribed to button notifications")
+
+                self.click_controllers.append(listener)
+
+            except Exception as e:
+                print(f"Error connecting to {device.name}: {e}")
+
+        if len(self.click_controllers) == 0:
             print("Could not connect to any Click controllers")
             return False
 
-        if left_connected and right_connected:
-            print("✓ Both Click controllers connected")
-        elif left_connected:
-            print("✓ Left Click connected (right not found)")
-        else:
-            print("✓ Right Click connected (left not found)")
+        print(f"\n✓ Connected to {len(self.click_controllers)} Click controller(s)")
+        if len(self.click_controllers) == 1:
+            print("  Note: Only one Click found. Both shift directions will use the same button.")
 
         return True
 
     async def disconnect(self):
-        """Disconnect from both Click controllers"""
-        await self.left_click.disconnect()
-        await self.right_click.disconnect()
+        """Disconnect from all Click controllers"""
+        for listener in self.click_controllers:
+            await listener.disconnect()
