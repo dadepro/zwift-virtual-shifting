@@ -3,6 +3,17 @@ macOS Input Monitor - Detect ANY input events including Zwift Clicks
 Uses macOS Quartz Event Tap to monitor all input events
 """
 
+# Install required packages if not available
+try:
+    from Quartz import CGEventTapCreate
+except ImportError:
+    print("Installing macOS frameworks...")
+    import subprocess
+    import sys
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "pyobjc-framework-Quartz", "pyobjc-framework-Cocoa"])
+    print("✓ Installed! Please run the script again.")
+    sys.exit(0)
+
 import asyncio
 from Quartz import (
     CGEventTapCreate,
