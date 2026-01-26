@@ -35,6 +35,7 @@ from Quartz import (
     CFRunLoopRun,
     CGEventGetIntegerValueField,
     kCGMouseEventButtonNumber,
+    kCGKeyboardEventKeycode,
 )
 import time
 from AppKit import NSEvent
@@ -70,6 +71,33 @@ def event_callback(proxy, event_type, event, refcon):
 
     print(f"\n[Event #{event_count}] {event_name}")
     print(f"  Time: {current_time:.3f}")
+
+    # Get key code for keyboard events
+    if event_type in [kCGEventKeyDown, kCGEventKeyUp]:
+        try:
+            keycode = CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode)
+            print(f"  ⭐ KEY CODE: {keycode}")
+
+            # Map common key codes to names
+            key_map = {
+                123: "Left Arrow",
+                124: "Right Arrow",
+                125: "Down Arrow",
+                126: "Up Arrow",
+                36: "Return",
+                49: "Space",
+                51: "Delete",
+                53: "Escape",
+                48: "Tab",
+                0: "A", 1: "S", 2: "D", 6: "Z", 7: "X", 13: "W",
+            }
+
+            key_name = key_map.get(keycode, f"Unknown key")
+            print(f"  Key: {key_name}")
+            print(f"  🎮 ZWIFT CLICK DETECTED!")
+            last_event_time = current_time
+        except Exception as e:
+            print(f"  Error getting keycode: {e}")
 
     # Try to get button number for mouse events
     if event_type in [kCGEventOtherMouseDown, kCGEventOtherMouseUp]:
